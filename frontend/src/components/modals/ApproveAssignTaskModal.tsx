@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ type Candidate = {
 
 const schema = z.object({
   assignedToId: z.string().min(1, "Please select a resident"),
+  fundAmount: z.coerce.number().int().min(0, "Fund amount cannot be negative").default(0),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -54,11 +56,12 @@ export function ApproveAssignTaskModal({ task, open, onClose, candidates }: Prop
     formState: { errors },
     reset,
     watch,
-  } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { assignedToId: "" } });
+    register,
+  } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { assignedToId: "", fundAmount: 0 } });
 
   useEffect(() => {
     if (!open) return;
-    reset({ assignedToId: "" });
+    reset({ assignedToId: "", fundAmount: 0 });
   }, [open, reset, task?.id]);
 
   const eligibleCandidates = useMemo(() => {
@@ -67,8 +70,8 @@ export function ApproveAssignTaskModal({ task, open, onClose, candidates }: Prop
   }, [candidates]);
 
   const approveAssignMutation = useMutation({
-    mutationFn: ({ id, assignedToId }: { id: string; assignedToId: string }) =>
-      tasksApi.approveAndAssign(id, { assignedToId }),
+    mutationFn: ({ id, assignedToId, fundAmount }: { id: string; assignedToId: string; fundAmount: number }) =>
+      tasksApi.approveAndAssign(id, { assignedToId, fundAmount }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast({ title: "Task approved", description: "Task is now active and assigned." });
@@ -91,7 +94,7 @@ export function ApproveAssignTaskModal({ task, open, onClose, candidates }: Prop
     if (!task) return;
     setIsSubmitting(true);
     try {
-      await approveAssignMutation.mutateAsync({ id: task.id, assignedToId: data.assignedToId });
+      await approveAssignMutation.mutateAsync({ id: task.id, assignedToId: data.assignedToId, fundAmount: data.fundAmount });
     } finally {
       setIsSubmitting(false);
     }
@@ -127,6 +130,24 @@ export function ApproveAssignTaskModal({ task, open, onClose, candidates }: Prop
             ) : null}
             {errors.assignedToId ? (
               <p className="text-sm text-destructive">{errors.assignedToId.message}</p>
+            ) : null}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="fundAmount">Fund Amount (from Room Treasury)</Label>
+            <Input
+              id="fundAmount"
+              type="number"
+              min={0}
+              step={1}
+              {...register("fundAmount", { valueAsNumber: true })}
+              placeholder="0"
+            />
+            <p className="text-xs text-muted-foreground">
+              Credits deducted from room treasury to fund this task. Default: 0
+            </p>
+            {errors.fundAmount ? (
+              <p className="text-sm text-destructive">{errors.fundAmount.message}</p>
             ) : null}
           </div>
 
